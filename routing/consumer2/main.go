@@ -22,48 +22,43 @@ func main() {
 	defer conn.Close()
 
 	// craete channel
-	amqpChannel, err := conn.Channel()
+	ch, err := conn.Channel()
 	handleError(err, "Can't create channel")
-	defer amqpChannel.Close()
+	defer ch.Close()
 
-	// config queue channel
-	// queue, err := amqpChannel.QueueDeclare("test", true, false, false, false, nil)
-	// handleError(err, "Could not declare `add` queue")
-
-	// err = amqpChannel.Qos(10, 0, false)
-	// handleError(err, "Could not configure Qos")
-
-	err = amqpChannel.ExchangeDeclare(
-		"logs",   // name
-		"fanout", // type
-		true,     // durable
-		false,    // auto-deleted
-		false,    // internal
-		false,    // no-wait
-		nil,      // arguments
+	err = ch.ExchangeDeclare(
+		"logs_direct",
+		amqp.ExchangeDirect,
+		true,
+		false,
+		false,
+		false,
+		nil,
 	)
-	handleError(err, "Failed to declare an exchange")
+	handleError(err, "Failed to declare exchange")
 
-	queue, err := amqpChannel.QueueDeclare(
-		"123", // name
+	q, err := ch.QueueDeclare(
+		"",    // name
 		false, // durable
 		false, // delete when unused
 		true,  // exclusive
 		false, // no-wait
 		nil,   // arguments
 	)
-	handleError(err, "Failed to declare a queue")
 
-	err = amqpChannel.QueueBind(
-		queue.Name, // queue name
-		"",         // routing key
-		"logs",     // exchange
-		false,
-		nil,
-	)
+	routingkeys := []string{"red", "white"}
+	for _, key := range routingkeys {
+		err = ch.QueueBind(
+			q.Name,        // queue name
+			key,           // routing key
+			"logs_direct", // exchange
+			false,
+			nil)
+	}
 
-	// consume queue
-	messageQueue, err := amqpChannel.Consume(queue.Name, "", false, false, false, false, nil)
+	handleError(err, "Failed to bind a queue")
+
+	messageQueue, err := ch.Consume(q.Name, "", false, false, false, false, nil)
 	handleError(err, "Counld not register consumer")
 
 	stopChan := make(chan bool)
@@ -89,4 +84,5 @@ func main() {
 	}()
 
 	<-stopChan
+
 }
